@@ -3,15 +3,34 @@ package registrycache
 import (
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 
 	extensionswebhook "github.com/gardener/gardener/extensions/pkg/webhook"
+	gardencorev1beta1 "github.com/gardener/gardener/pkg/apis/core/v1beta1"
 	extensionsv1alpha1 "github.com/gardener/gardener/pkg/apis/extensions/v1alpha1"
 	"github.com/gardener/gardener/pkg/utils"
 	"github.com/pelletier/go-toml/v2"
 
 	"github.com/stackitcloud/gardener-extension-provider-stackit/v2/pkg/apis/config"
 )
+
+// ShootDisableRegistryCaches disables injecting registry mirrors defined in the extension configuration into the shoot's OperatingSystemConfig
+const ShootDisableRegistryCaches = "shoot.gardener.cloud/disable-stackit-registry-caches"
+
+// ShouldEnsure checks whether registry caches should be injected
+func ShouldEnsure(shoot *gardencorev1beta1.Shoot) bool {
+	annotations := shoot.GetAnnotations()
+	if annotations == nil {
+		return true
+	}
+	val, ok := annotations[ShootDisableRegistryCaches]
+	if !ok {
+		return true
+	}
+	disableCaches, _ := strconv.ParseBool(val)
+	return !disableCaches
+}
 
 type Ensurer struct {
 	Caches []config.RegistryCacheConfiguration
@@ -42,8 +61,8 @@ func ensureHostsConfig(reg config.RegistryCacheConfiguration, files *[]extension
 		Permissions: new(uint32(0o644)),
 		Content: extensionsv1alpha1.FileContent{
 			Inline: &extensionsv1alpha1.FileContentInline{
-				Encoding: "",
-				Data:     data,
+				Encoding: "b64",
+				Data:     utils.EncodeBase64([]byte(data)),
 			},
 		},
 	}
